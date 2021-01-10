@@ -1,53 +1,35 @@
 /**
- *    Copyright 2009-2020 the original author or authors.
- *
- *    Licensed under the Apache License, Version 2.0 (the "License");
- *    you may not use this file except in compliance with the License.
- *    You may obtain a copy of the License at
- *
- *       http://www.apache.org/licenses/LICENSE-2.0
- *
- *    Unless required by applicable law or agreed to in writing, software
- *    distributed under the License is distributed on an "AS IS" BASIS,
- *    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *    See the License for the specific language governing permissions and
- *    limitations under the License.
+ * Copyright 2009-2020 the original author or authors.
+ * <p>
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package org.apache.ibatis.builder.xml;
 
-import java.io.InputStream;
-import java.io.Reader;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-
-import org.apache.ibatis.builder.BaseBuilder;
-import org.apache.ibatis.builder.BuilderException;
-import org.apache.ibatis.builder.CacheRefResolver;
-import org.apache.ibatis.builder.IncompleteElementException;
-import org.apache.ibatis.builder.MapperBuilderAssistant;
-import org.apache.ibatis.builder.ResultMapResolver;
+import org.apache.ibatis.builder.*;
 import org.apache.ibatis.cache.Cache;
 import org.apache.ibatis.executor.ErrorContext;
 import org.apache.ibatis.io.Resources;
-import org.apache.ibatis.mapping.Discriminator;
-import org.apache.ibatis.mapping.ParameterMapping;
-import org.apache.ibatis.mapping.ParameterMode;
-import org.apache.ibatis.mapping.ResultFlag;
-import org.apache.ibatis.mapping.ResultMap;
-import org.apache.ibatis.mapping.ResultMapping;
+import org.apache.ibatis.mapping.*;
 import org.apache.ibatis.parsing.XNode;
 import org.apache.ibatis.parsing.XPathParser;
 import org.apache.ibatis.reflection.MetaClass;
 import org.apache.ibatis.session.Configuration;
 import org.apache.ibatis.type.JdbcType;
 import org.apache.ibatis.type.TypeHandler;
+
+import java.io.InputStream;
+import java.io.Reader;
+import java.util.*;
 
 /**
  * @author Clinton Begin
@@ -69,7 +51,7 @@ public class XMLMapperBuilder extends BaseBuilder {
   @Deprecated
   public XMLMapperBuilder(Reader reader, Configuration configuration, String resource, Map<String, XNode> sqlFragments) {
     this(new XPathParser(reader, true, configuration.getVariables(), new XMLMapperEntityResolver()),
-        configuration, resource, sqlFragments);
+      configuration, resource, sqlFragments);
   }
 
   public XMLMapperBuilder(InputStream inputStream, Configuration configuration, String resource, Map<String, XNode> sqlFragments, String namespace) {
@@ -79,7 +61,7 @@ public class XMLMapperBuilder extends BaseBuilder {
 
   public XMLMapperBuilder(InputStream inputStream, Configuration configuration, String resource, Map<String, XNode> sqlFragments) {
     this(new XPathParser(inputStream, true, configuration.getVariables(), new XMLMapperEntityResolver()),
-        configuration, resource, sqlFragments);
+      configuration, resource, sqlFragments);
   }
 
   private XMLMapperBuilder(XPathParser parser, Configuration configuration, String resource, Map<String, XNode> sqlFragments) {
@@ -91,12 +73,16 @@ public class XMLMapperBuilder extends BaseBuilder {
   }
 
   public void parse() {
+    // 检查映射文件是否以及被解析过
     if (!configuration.isResourceLoaded(resource)) {
+      // 解析 mapper 节点
       configurationElement(parser.evalNode("/mapper"));
+      // 添加资源路径到“已解析资源集合”中
       configuration.addLoadedResource(resource);
+      // 通过命名空间，绑定Mapper
       bindMapperForNamespace();
     }
-
+    // 处理未完成解析的节点
     parsePendingResultMaps();
     parsePendingCacheRefs();
     parsePendingStatements();
@@ -108,16 +94,24 @@ public class XMLMapperBuilder extends BaseBuilder {
 
   private void configurationElement(XNode context) {
     try {
+      //获取 mapper 命名空间
       String namespace = context.getStringAttribute("namespace");
       if (namespace == null || namespace.isEmpty()) {
         throw new BuilderException("Mapper's namespace cannot be empty");
       }
+      // 设置 namespace 到 MapperBuilderAssistant
       builderAssistant.setCurrentNamespace(namespace);
+      // 解析 cache-ref 节点
       cacheRefElement(context.evalNode("cache-ref"));
+      // 解析 cache 节点
       cacheElement(context.evalNode("cache"));
+      // 已废弃
       parameterMapElement(context.evalNodes("/mapper/parameterMap"));
+      // 解析 <resultMap> 节点
       resultMapElements(context.evalNodes("/mapper/resultMap"));
+      // 解析<sql>节点
       sqlElement(context.evalNodes("/mapper/sql"));
+      // 解析 <select> <insert> <update> <delete> 节点
       buildStatementFromContext(context.evalNodes("select|insert|update|delete"));
     } catch (Exception e) {
       throw new BuilderException("Error parsing Mapper XML. The XML location is '" + resource + "'. Cause: " + e, e);
@@ -241,6 +235,7 @@ public class XMLMapperBuilder extends BaseBuilder {
   }
 
   private void resultMapElements(List<XNode> list) {
+    // 遍历<ResultMap> 节点
     for (XNode resultMapNode : list) {
       try {
         resultMapElement(resultMapNode);
@@ -256,38 +251,49 @@ public class XMLMapperBuilder extends BaseBuilder {
 
   private ResultMap resultMapElement(XNode resultMapNode, List<ResultMapping> additionalResultMappings, Class<?> enclosingType) {
     ErrorContext.instance().activity("processing " + resultMapNode.getValueBasedIdentifier());
+    // 获取type属性
     String type = resultMapNode.getStringAttribute("type",
-        resultMapNode.getStringAttribute("ofType",
-            resultMapNode.getStringAttribute("resultType",
-                resultMapNode.getStringAttribute("javaType"))));
+      resultMapNode.getStringAttribute("ofType",
+        resultMapNode.getStringAttribute("resultType",
+          resultMapNode.getStringAttribute("javaType"))));
     Class<?> typeClass = resolveClass(type);
     if (typeClass == null) {
       typeClass = inheritEnclosingType(resultMapNode, enclosingType);
     }
     Discriminator discriminator = null;
     List<ResultMapping> resultMappings = new ArrayList<>(additionalResultMappings);
+    // 获取并遍历 <resultMap> 的子节点列表
     List<XNode> resultChildren = resultMapNode.getChildren();
     for (XNode resultChild : resultChildren) {
       if ("constructor".equals(resultChild.getName())) {
+        // 解析 constructor 节点，并生成相应的 ResultMapping
         processConstructorElement(resultChild, typeClass, resultMappings);
       } else if ("discriminator".equals(resultChild.getName())) {
+        // 解析 discriminator 节点
         discriminator = processDiscriminatorElement(resultChild, typeClass, resultMappings);
       } else {
+        // 添加 ID 到 flags 集合中
         List<ResultFlag> flags = new ArrayList<>();
         if ("id".equals(resultChild.getName())) {
           flags.add(ResultFlag.ID);
         }
+        // 解析 id 和 property 节点，并生成相应的 ResultMapping
         resultMappings.add(buildResultMappingFromContext(resultChild, typeClass, flags));
       }
     }
+    // 获取id属性
     String id = resultMapNode.getStringAttribute("id",
-            resultMapNode.getValueBasedIdentifier());
+      resultMapNode.getValueBasedIdentifier());
+    // 获取 extends 和 autoMapping 属性
     String extend = resultMapNode.getStringAttribute("extends");
     Boolean autoMapping = resultMapNode.getBooleanAttribute("autoMapping");
     ResultMapResolver resultMapResolver = new ResultMapResolver(builderAssistant, id, typeClass, extend, discriminator, resultMappings, autoMapping);
     try {
+      // 根据前面获取的信息构建 ResultMap
       return resultMapResolver.resolve();
     } catch (IncompleteElementException e) {
+      // 如果发生IncompleteElementException异常，
+      // 这里将 resultMapResolver 添加到addIncompleteResultMap中
       configuration.addIncompleteResultMap(resultMapResolver);
       throw e;
     }
@@ -368,6 +374,9 @@ public class XMLMapperBuilder extends BaseBuilder {
     return context.getStringAttribute("databaseId") == null;
   }
 
+  /**
+   * 解析ResultMap的<id>和<result>节点
+   */
   private ResultMapping buildResultMappingFromContext(XNode context, Class<?> resultType, List<ResultFlag> flags) {
     String property;
     if (flags.contains(ResultFlag.CONSTRUCTOR)) {
@@ -380,7 +389,7 @@ public class XMLMapperBuilder extends BaseBuilder {
     String jdbcType = context.getStringAttribute("jdbcType");
     String nestedSelect = context.getStringAttribute("select");
     String nestedResultMap = context.getStringAttribute("resultMap", () ->
-        processNestedResultMappings(context, Collections.emptyList(), resultType));
+      processNestedResultMappings(context, Collections.emptyList(), resultType));
     String notNullColumn = context.getStringAttribute("notNullColumn");
     String columnPrefix = context.getStringAttribute("columnPrefix");
     String typeHandler = context.getStringAttribute("typeHandler");
@@ -395,7 +404,7 @@ public class XMLMapperBuilder extends BaseBuilder {
 
   private String processNestedResultMappings(XNode context, List<ResultMapping> resultMappings, Class<?> enclosingType) {
     if (Arrays.asList("association", "collection", "case").contains(context.getName())
-        && context.getStringAttribute("select") == null) {
+      && context.getStringAttribute("select") == null) {
       validateCollection(context, enclosingType);
       ResultMap resultMap = resultMapElement(context, resultMappings, enclosingType);
       return resultMap.getId();
@@ -405,21 +414,25 @@ public class XMLMapperBuilder extends BaseBuilder {
 
   protected void validateCollection(XNode context, Class<?> enclosingType) {
     if ("collection".equals(context.getName()) && context.getStringAttribute("resultMap") == null
-        && context.getStringAttribute("javaType") == null) {
+      && context.getStringAttribute("javaType") == null) {
       MetaClass metaResultType = MetaClass.forClass(enclosingType, configuration.getReflectorFactory());
       String property = context.getStringAttribute("property");
       if (!metaResultType.hasSetter(property)) {
         throw new BuilderException(
-            "Ambiguous collection type for property '" + property + "'. You must specify 'javaType' or 'resultMap'.");
+          "Ambiguous collection type for property '" + property + "'. You must specify 'javaType' or 'resultMap'.");
       }
     }
   }
 
+  /**
+   * 通过命名空间，绑定Mapper
+   */
   private void bindMapperForNamespace() {
     String namespace = builderAssistant.getCurrentNamespace();
     if (namespace != null) {
       Class<?> boundType = null;
       try {
+        // 反射获取namespace的类
         boundType = Resources.classForName(namespace);
       } catch (ClassNotFoundException e) {
         // ignore, bound type is not required
