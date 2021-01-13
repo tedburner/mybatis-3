@@ -50,7 +50,9 @@ public class MapperMethod {
   private final MethodSignature method;
 
   public MapperMethod(Class<?> mapperInterface, Method method, Configuration config) {
+    // 创建 SqlCommand 对象，该对象包含一些和 SQL 相关的信息
     this.command = new SqlCommand(config, mapperInterface, method);
+    // 创建 MethodSignature 对象，由类名可知，该对象包含了被拦截方法的一些信息
     this.method = new MethodSignature(config, mapperInterface, method);
   }
 
@@ -224,9 +226,12 @@ public class MapperMethod {
     public SqlCommand(Configuration configuration, Class<?> mapperInterface, Method method) {
       final String methodName = method.getName();
       final Class<?> declaringClass = method.getDeclaringClass();
+      // 解析MappedStatement
       MappedStatement ms = resolveMappedStatement(mapperInterface, methodName, declaringClass,
           configuration);
+      // 检测当前方法是否有对应的 MappedStatement
       if (ms == null) {
+        // 检测当前反腐使用含有 @Flush 注解
         if (method.getAnnotation(Flush.class) != null) {
           name = null;
           type = SqlCommandType.FLUSH;
