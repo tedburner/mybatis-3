@@ -1,36 +1,31 @@
 /**
- *    Copyright 2009-2020 the original author or authors.
- *
- *    Licensed under the Apache License, Version 2.0 (the "License");
- *    you may not use this file except in compliance with the License.
- *    You may obtain a copy of the License at
- *
- *       http://www.apache.org/licenses/LICENSE-2.0
- *
- *    Unless required by applicable law or agreed to in writing, software
- *    distributed under the License is distributed on an "AS IS" BASIS,
- *    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *    See the License for the specific language governing permissions and
- *    limitations under the License.
+ * Copyright 2009-2020 the original author or authors.
+ * <p>
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package org.apache.ibatis.datasource.unpooled;
 
+import org.apache.ibatis.io.Resources;
+
+import javax.sql.DataSource;
 import java.io.PrintWriter;
-import java.sql.Connection;
-import java.sql.Driver;
-import java.sql.DriverManager;
-import java.sql.DriverPropertyInfo;
-import java.sql.SQLException;
+import java.sql.*;
 import java.util.Enumeration;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.logging.Logger;
-
-import javax.sql.DataSource;
-
-import org.apache.ibatis.io.Resources;
 
 /**
  * @author Clinton Begin
@@ -197,8 +192,7 @@ public class UnpooledDataSource implements DataSource {
   /**
    * Sets the default network timeout value to wait for the database operation to complete. See {@link Connection#setNetworkTimeout(java.util.concurrent.Executor, int)}
    *
-   * @param defaultNetworkTimeout
-   *          The time in milliseconds to wait for the database operation to complete.
+   * @param defaultNetworkTimeout The time in milliseconds to wait for the database operation to complete.
    * @since 3.5.2
    */
   public void setDefaultNetworkTimeout(Integer defaultNetworkTimeout) {
@@ -211,32 +205,46 @@ public class UnpooledDataSource implements DataSource {
       props.putAll(driverProperties);
     }
     if (username != null) {
+      //存储 user 配置
       props.setProperty("user", username);
     }
     if (password != null) {
+      // 存储 password 配置
       props.setProperty("password", password);
     }
     return doGetConnection(props);
   }
 
+  /**
+   * 获取数据连接
+   */
   private Connection doGetConnection(Properties properties) throws SQLException {
     initializeDriver();
     Connection connection = DriverManager.getConnection(url, properties);
+    // 配置连接，包括自动提交以及事务等级
     configureConnection(connection);
     return connection;
   }
 
+  /**
+   * 初始化数据库驱动
+   */
   private synchronized void initializeDriver() throws SQLException {
+    // 检测缓存中是否包含了与 driver 对应的驱动实例
     if (!registeredDrivers.containsKey(driver)) {
       Class<?> driverType;
       try {
+        // 加载驱动类型
         if (driverClassLoader != null) {
+          // 使用 driverClassLoader 加载驱动
           driverType = Class.forName(driver, true, driverClassLoader);
         } else {
+          // 通过其他 ClassLoader 架子啊驱动
           driverType = Resources.classForName(driver);
         }
         // DriverManager requires the driver to be loaded via the system ClassLoader.
         // http://www.kfu.com/~nsayer/Java/dyn-jdbc.html
+        // 通过反射创建驱动实例
         Driver driverInstance = (Driver) driverType.getDeclaredConstructor().newInstance();
         DriverManager.registerDriver(new DriverProxy(driverInstance));
         registeredDrivers.put(driver, driverInstance);
@@ -246,14 +254,22 @@ public class UnpooledDataSource implements DataSource {
     }
   }
 
+  /**
+   * 配置数据库连接
+   *
+   * @param conn 数据库连接
+   */
   private void configureConnection(Connection conn) throws SQLException {
     if (defaultNetworkTimeout != null) {
+      // 设置默认网络超时
       conn.setNetworkTimeout(Executors.newSingleThreadExecutor(), defaultNetworkTimeout);
     }
     if (autoCommit != null && autoCommit != conn.getAutoCommit()) {
+      // 设置自动提交
       conn.setAutoCommit(autoCommit);
     }
     if (defaultTransactionIsolationLevel != null) {
+      // 设置事务隔离级别
       conn.setTransactionIsolation(defaultTransactionIsolationLevel);
     }
   }
